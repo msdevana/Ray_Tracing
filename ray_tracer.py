@@ -1,3 +1,10 @@
+"""
+Created By: Manish S. Devana (mdevana@rsmas.miami.edu)
+
+Ray Tracing in 4 dimensions using satGEM background fields
+
+"""
+
 
 import numpy as np
 from scipy.integrate import solve_ivp, RK23, odeint,  quad
@@ -88,6 +95,9 @@ class gemFuncs(object):
 
         trev = np.asarray(trev)
         self.gem['time'] = trev
+
+#-------------------------------------------------------------------------------
+
 
     def createFuncs(self, X, t, lonpad=1.5, latpad=1.5, tpad=1.5):
         """
@@ -279,6 +289,9 @@ class gemFuncs(object):
 
         return lonlim, latlim, tlim
 
+#-------------------------------------------------------------------------------
+
+
     def fallback(self, xi):
         """
         fall back in case 
@@ -433,8 +446,9 @@ class raytracer(object):
 
     def run(self, tstep=30, duration=5, lonpad=1.5, latpad=1.5,
             tpad=7, direction='forward', bottom=3000,rho0=1030, 
-            clearance =.5, shear=-.001,strain=True,stops=True,vertspeed=True, 
-            time_constant=False, progress_bar=False):
+            clearance =.5, shear=-.001, fname='ray_trace.csv',
+            strain=True,stops=True,vertspeed=True, 
+            time_constant=False, save_data=False, progress_bar=False):
         """
         Setup for midpoint method integration:
         1. Get field values 
@@ -456,6 +470,8 @@ class raytracer(object):
         Kall = []
         amplitudes = []
         energy = []
+
+        # names of all the columns in results frame
         names = ('Lon', 'Lat', 'depth', 'distance','bottom_depth','k','l','m',
                     'omega','N2', 'U','V', 'dudx', 'dvdx', 'dndx', 'dudy',
                     'dvdy', 'dndy', 'dudz', 'dvdz', 'dndz','cgx','cgy','cgz',
@@ -771,49 +787,12 @@ class raytracer(object):
                 np.real(np.stack(energy)),
                 np.real(np.expand_dims(T[:ii + 1], axis=1))), axis=1), columns=names)
 
+        if save_data:
+            data.to_csv(fname)
+
         return data
                                             
                                             
-
-    def Flux(self, k, l, m, omega, p0, lat, x, y, z, t, N2, rho0=1030):
-        """
-        after a run calcualte the plane wave fitted parameters
-        
-        """
-        names = ('u', 'v', 'w', 'u0', 'v0', 'w0',
-                'u_momentum', 'v_momentum', 'horiz_momentum', 'energy','time')
-        # step 1 vertical perturbation amplitudes
-
-        w0 = p0 * (-m * omega) / (N2 - omega**2)
-        theta = np.arctan2(np.sqrt(k**2 + l**2), m)
-
-        u0 = -np.tan(theta * w0) 
-        v0 = -(gsw.f(lat) / omega) * np.tan(theta* w0) 
-
-        kh = np.sqrt(k**2 + l**2)
-        xrev = np.sqrt(x**2 + y**2)
-        phase = kh*xrev + m * z - omega * t
-
-        # step 2
-        w = w0 * np.cos(phase)
-        u = u0 * np.cos(phase)
-        v = v0 * np.sin(phase)
-
-
-        Umom = rho0 * u * w
-        Vmom = rho0 * v * w
-
-        mFlux = np.sqrt(Umom**2 + Vmom**2)
-
-        rho = -(N2 / omega/9.8)*rho0*w0*np.sin(phase)
-
-        E = .5*rho0*(u**2 + v**2 + w**2) + .5*9.8*(rho/rho0)*N2
-
-        return pd.DataFrame(np.array((u, v, w, u0, v0, w0, 
-                            Umom, Vmom, mFlux, E, t)).T, columns=names)
-
- 
-
 
     
         
