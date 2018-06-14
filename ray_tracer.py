@@ -3,6 +3,15 @@ Created By: Manish S. Devana (mdevana@rsmas.miami.edu)
 
 Ray Tracing in 4 dimensions using satGEM background fields
 
+
+INSTRUCTIONS FOR RAY TRACING
+
+1 - Load Ray Tracer as object:
+    Interpolation functions will be generated when during this step
+2 - Set Ray Tracer object wave properties, location, and time
+3 - Run raytracing  with specified duration (hours) and timestep(seconds)
+4 - results are return as pandas dataframe (can be easily saved as csv)
+
 """
 
 
@@ -102,14 +111,13 @@ class gemFuncs(object):
     def createFuncs(self, X, t, lonpad=1.5, latpad=1.5, tpad=1.5):
         """
         Pass data fields of satgem to generate functions 
-        
-        """
-
-        """
+    
         Generate Interpolation functions 
         """
         if tpad < 7:
             tpad = 7
+
+        # Get indicies for subset of satgem/bathy data
         lonind = self.gem.temp.lon.sel(lon=slice(X[0] - lonpad, X[0] + lonpad))
         clonind = self.gem.V.clon.sel(clon=slice(X[0] - lonpad, X[0] + lonpad))
         latind = self.gem.temp.lat.sel(lat=slice(X[1] - latpad, X[1] + latpad))
@@ -661,13 +669,6 @@ class raytracer(object):
             # E =E/rho0
  
             energy.append([E, Umom, Vmom, mFlux])
-
-            # allbottom.append(bottom)
-            # if K1[3]**2 >= self.F.N2(xi2):
-            #     print('frequency above Bouyancy frequency')
-            #     print(K[3]**2)
-            #     print(self.F.N2(xi2))
-            #     break
 
 
             if stops:
