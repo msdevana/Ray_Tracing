@@ -110,7 +110,7 @@ class gemFuncs(object):
 
     def createFuncs(self, X, t, lonpad=1.5, latpad=1.5, tpad=1.5):
         """
-        Pass data fields of satgem to generate functions 
+        Pass data fields of satgem to generate interpolation functions 
     
         Generate Interpolation functions 
         """
@@ -302,7 +302,7 @@ class gemFuncs(object):
 
     def fallback(self, xi):
         """
-        fall back in case 
+        fall back in case interpolation doesn't wokr just use nearest neighbor interpolation
         """
         lonid = self.gem.lon.sel(lon=xi[0], method='nearest').values
         latid = self.gem.lat.sel(lat=xi[1], method='nearest').values
@@ -319,7 +319,7 @@ class gemFuncs(object):
 
     def getfield(self, xi):
         """
-        Get field values from satgem
+        Get field values from satgem interpolation functions
         """
         N2 = self.N2(xi)
         if np.isnan(N2):
@@ -388,6 +388,12 @@ class gemFuncs(object):
 class raytracer(object):
     """
     Integrating ray equations
+    
+    Intstructions:
+    
+    1. Create raytracer object with initial position vector (lon, lat, depth), initial wavenumber vector (lon, lat, depth),
+    initial time (in format: ) and longitude /latitude /time padding (these define how big the region for making interpolation functions
+    2. use "run" method (i.e. raytracer.run()) to run ray tracing and store results in pandas dataframe format
     
     
     
@@ -458,6 +464,13 @@ class raytracer(object):
             strain=True,stops=True,vertspeed=True, 
             time_constant=False, save_data=False, progress_bar=False):
         """
+        INSTRUCTIONS:
+        TSTEP: TIMESTEP IN SECONDS (DEFAULT 30 SECONDS)
+        DURATION: DURATION (IN DAYS) - DEFAULT 5
+        IGNORE LONPAD AND LATPAD (DIDNT CHANGE FROM OLDER VERSION)
+        DIRECTION: "forward" and "reverse"  (SETS INTEGRATION TIME DIRECTION)
+        BOTTOM:  
+        
         Setup for midpoint method integration:
         1. Get field values 
         2. Get Cg @ t_n, X_n
