@@ -35,7 +35,8 @@ import pandas as pd
 #-------------------------------------------------------------------------------
 class LinearNDInterpolatorExt(object):
     """
-    modified regular grid inteprolator
+    The modified regular grid interpolator which generates both nearest neighbor and linear N-D interpolator 
+    When called the linear interpolation is attempted first and if the result is Nan then it falls back to nearest neighbor interpolation
     """
 
     def __init__(self, points, values, fill_value=None):
@@ -45,11 +46,13 @@ class LinearNDInterpolatorExt(object):
             points, values, method='nearest', bounds_error=False, fill_value=fill_value)
 
     def __call__(self, *args):
-
+        
+        # Try Linear Neighbor interpolation First
         t = self.funcinterp(*args)
+
         if np.isfinite(t):
             return t.item(0)
-        else:
+        else: # If nearest linear interpolation fails then use nearest neighbor
             return self.funcnearest(*args)
 
 #-------------------------------------------------------------------------------
@@ -92,7 +95,7 @@ class gemFuncs(object):
 
     def __init__(self):
         """
-        Generate gemFuncs object 
+        Generate gemFuncs object which loads the satGEM fields and the local bathymetry. This needs to be modified for other locations
         """
 
         self.gem = xr.open_dataset('satGEM_md.nc')
@@ -113,6 +116,11 @@ class gemFuncs(object):
         Pass data fields of satgem to generate interpolation functions 
     
         Generate Interpolation functions 
+
+        Paramaters
+        ----------
+        X: Position Vector
+        t: initial time (center of the interpolation field)
         """
         if tpad < 7:
             tpad = 7
@@ -469,7 +477,7 @@ class raytracer(object):
         DURATION: DURATION (IN DAYS) - DEFAULT 5
         IGNORE LONPAD AND LATPAD (DIDNT CHANGE FROM OLDER VERSION)
         DIRECTION: "forward" and "reverse"  (SETS INTEGRATION TIME DIRECTION)
-        BOTTOM:  
+        BOTTOM:  can set default bottom instead of using bathymetry file
         
         Setup for midpoint method integration:
         1. Get field values 
@@ -613,32 +621,20 @@ class raytracer(object):
             omega = np.copy(K1[3])
             f = gsw.f(lat3)
             w0 = (self.p0 * (-m * omega) / (field[0] - omega**2))
-   
+
+            # Perturbation amplitudes
             u0 = (self.p0 * (k * omega + l * f * 1j) / (omega**2 - f**2))
             v0 = (self.p0 * (l * omega - k * f * 1j) / (omega**2 - f**2))
             b0 = (self.p0 * (-1j * m * field[0]) / (field[0] - omega**2))
-            # w0 = self.p0 * (K1[2] * K1[3]) / (field[0] - K1[3]**2)
-            # theta = np.arctan2(np.sqrt(K1[0]**2 + K1[1]**2), K1[2])
 
-            # u0 = -np.tan(theta * w0)
-            # v0 = -(gsw.f(lat3) / K1[3]) * np.tan(theta * w0)
-
-            # kh = np.sqrt(K1[0]**2 + K1[1]**2)
-            # xrev = np.sqrt(dist_so_far[ii,0]**2 + dist_so_far[ii,1]**2)
+            # total distance so far
             xx = np.copy(dist_so_far[ii, 0])
             yy = np.copy(dist_so_far[ii, 1])
             zz = np.copy(dist_so_far[ii, 2])
             phase = k * xx + l * yy \
                     + m * zz - omega * t1
 
-            # step 2
-            # w = np.real(w0 * np.exp(1j * phase))
-            # # u = np.real(u0 * np.exp(1j * phase))
-            # v = np.real(v0 * np.exp(1j * phase))
-            # b = np.real(b0 * np.exp(1j * phase))
-            
 
-            #step 2 version 2 
 
             # INtegration Limits
             period = np.abs(2 * np.pi / omega)
@@ -669,14 +665,15 @@ class raytracer(object):
             
             amplitudes.append([u0, v0, w0, u, v, w, b])
 
-
+            # Calculate U and V momentum 
             Umom = rho0 * (u * w)/period
             Vmom = rho0 * (v * w) / period
 
+            # Calculate momentum flux
             mFlux = np.sqrt(((u * w) / period)**2 + ((v * w) / period)**2)
 
             # b = -(field[0] /omega / 9.8) * rho0 * w0 * np.sin(phase)
-
+            # Internal wave energy
             E = .5 * rho0 * (u2 + v2 + w2) \
                 + .5 *rho0* b2 * np.sqrt(field[0])**-2
             # E =E/rho0
@@ -685,11 +682,13 @@ class raytracer(object):
 
 
             if stops:
+                # check if vertical speed goes to zero
                 if vertspeed:
                     if np.abs(dz2 / tstep) < 1e-4:
                         print('Vertical Group speed = zero {} meters from bottom'.format(bottom- X[2]))
                         break
                     if np.abs(E)> 1000:
+                        # this checks if energy has gone to some unrealistic asymptote like behavior
                         print('ENERGY ERROR')
                         break
 
@@ -699,6 +698,7 @@ class raytracer(object):
                             print('Non Linear')
                             break
 
+                # data Boundary checks
                 if not self.lonlim[0] <= X[0] <= self.lonlim[1]:
                     print('lon out of bounds')
                     break
@@ -713,60 +713,26 @@ class raytracer(object):
                     print(self.tlim)
                     break
 
+                #  Check if near the bottom or surface
                 if X[2] + clearance*np.abs((2*np.pi)/K1[2])  >= bottom:
                     print('Hit Bottom - {} meters from bottom'.format(bottom- X[2]))
                     break
 
-                # if X[2] + 250 >= bottom:
-                #     print('Hit Bottom - {} meters from bottom'.format(bottom- X[2]))
-                #     break
-
-
-                # X direction
-                # if (2*np.pi)/np.abs(K1[0]) < 50:
-                #     print('Horizontal Wavelength (x) approached zero') 
-                #     break
-                    
-                # if (2*np.pi)/np.abs(K1[0]) > 1000e3:
-                #     print('Horizontal Wavelength (x) approached infinity')
-                #     break
-                
-                # # Y direction 
-                # if (2*np.pi)/np.abs(K1[1]) < 50:
-                #     print('Horizontal Wavelength (y) approached zero') 
-                #     break
-                    
-                # if (2*np.pi)/np.abs(K1[1]) > 1000e3:
-                #     print('Horizontal Wavelength (y) approached infinity')
-                #     break
-                
-                # # Z direction
-                # if (2*np.pi)/np.abs(K1[2]) < 50:
-                #     print('Vertical Wavelength (z) approached zero') 
-                #     break
-                    
-                # if (2*np.pi)/np.abs(K1[2]) > 3e3:
-                #     print('Vertical Wavelength (z) approached infinity')
-                #     break
 
                 if X[2] <= 0:
                     print('Hit Surface')
                     break
 
-                # if K1[3]**2 <= f**2:
-                #     print('Fell Below intertial frequency')
-                #     print(K[3]**2)
-                #     break
-
+   k
+                
+                # Check if  frequency gets too high
                 if K1[3]**2 >= self.F.N2(xi2):
                     print('frequency above Bouyancy frequency')
                     # print(K[3]**2)
                     # print(self.F.N2(xi2))
                     break
 
-                if np.iscomplex(K1[0]):
-                    print('complex step {}'.format(ii))
-                    break
+
 
                 if not np.isfinite(X1[0]):
                     print('X Update Error')
@@ -791,6 +757,7 @@ class raytracer(object):
                 
                     break
 
+        # Save data in pandas data 
         data = pd.DataFrame(np.concatenate(
                 (np.real(np.stack(Xall)),
                 np.real(np.stack(Kall)), 
